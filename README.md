@@ -1,24 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Live Collaboration Whiteboard
+
+A real-time collaborative whiteboard application built with Next.js 15, Socket.IO, and HTML5 Canvas.
+
+## Implementation Steps
+
+1. **Socket.IO Setup**
+   - Install Socket.IO dependencies
+   - Create WebSocket server
+   - Set up client-side Socket.IO connection
+
+2. **Whiteboard Implementation**
+   - Create Canvas component
+   - Implement drawing functionality
+   - Add color picker and brush size selector
+
+3. **Real-time Collaboration**
+   - Broadcast drawing events
+   - Sync canvas state between users
+   - Handle user join/leave events
+
+4. **Features**
+   - Real-time drawing synchronization
+   - Multiple colors and brush sizes
+   - User presence indicators
+   - Clear canvas option
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Visit `http://localhost:3000` to view the application.
 
 ## Learn More
 
