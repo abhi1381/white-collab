@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { io } from "socket.io-client";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { io, Socket } from "socket.io-client";
 
 interface User {
   id: string;
@@ -25,6 +25,7 @@ interface DrawingData {
     type: "rectangle" | "circle";
   };
   user?: {
+    id: string;
     name: string;
     emoji: string;
   };
@@ -41,7 +42,7 @@ export default function Whiteboard() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [color, setColor] = useState("#000000");
   const [brushSize, setBrushSize] = useState(2);
-  const socketRef = useRef<any>(null);
+  const socketRef = useRef<Socket | null>(null);
   const [selectedTool, setSelectedTool] = useState<
     "pen" | "eraser" | "rectangle" | "circle"
   >("pen");
@@ -86,32 +87,39 @@ export default function Whiteboard() {
   };
 
   useEffect(() => {
-    const socket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || "wss://your-websocket-server.com");
+    const socket = io(
+      process.env.NEXT_PUBLIC_WEBSOCKET_URL || "wss://your-websocket-server.com"
+    );
     socketRef.current = socket;
 
-    // Generate random name and emoji for current user
     const name = generateRandomName();
     const emoji = generateRandomEmoji();
     setCurrentUser({ name, emoji });
 
-    // Initialize canvas with white background
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const context = canvas.getContext("2d");
-      if (context) {
-        context.fillStyle = "white";
-        context.fillRect(0, 0, canvas.width, canvas.height);
+    const initializeCanvas = () => {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const context = canvas.getContext("2d");
+        if (context) {
+          context.fillStyle = "white";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+        }
       }
-    }
+    };
 
-    // Initialize temp canvas
-    const tempCanvas = tempCanvasRef.current;
-    if (tempCanvas) {
-      tempCanvas.style.position = "absolute";
-      tempCanvas.style.pointerEvents = "none";
-      tempCanvas.style.top = "0";
-      tempCanvas.style.left = "0";
-    }
+    initializeCanvas();
+
+    const initializeTempCanvas = () => {
+      const tempCanvas = tempCanvasRef.current;
+      if (tempCanvas) {
+        tempCanvas.style.position = "absolute";
+        tempCanvas.style.pointerEvents = "none";
+        tempCanvas.style.top = "0";
+        tempCanvas.style.left = "0";
+      }
+    };
+
+    initializeTempCanvas();
 
     socket.emit("user-joined", { name, emoji });
 
@@ -120,25 +128,21 @@ export default function Whiteboard() {
     });
 
     socket.on("draw", (data: DrawingData) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const context = canvas.getContext("2d");
+      if (!canvasRef.current) return;
+      const context = canvasRef.current.getContext("2d");
       if (!context) return;
 
-      // Update drawing status for the user
       if (data.user) {
         setActiveUsers((prev) =>
-          prev.map((u) => {
-            if (u.id === data.user?.id) {
-              return { ...u, isDrawing: data.type === "start" };
-            }
-            return u;
-          })
+          prev.map((u) => ({
+            ...u,
+            isDrawing:
+              u.id === data.user?.id ? data.type === "start" : u.isDrawing,
+          }))
         );
       }
 
       if (data.shapeData) {
-        // Handle shape drawing
         const { startPoint, endPoint, type } = data.shapeData;
         drawShape(context, startPoint, endPoint, type, data.color, data.size);
       } else if (data.type === "start") {
@@ -154,9 +158,16 @@ export default function Whiteboard() {
     });
 
     socket.on("user-position", (data: { id: string; position: Point }) => {
-      setActiveUsers((users) => {
-        const newUsers = users.filter((u) => u.id !== data.id);
-        return [...newUsers, data];
+      setActiveUsers((prevUsers) => {
+        const userIndex = prevUsers.findIndex((u) => u.id === data.id);
+        if (userIndex === -1) return prevUsers;
+
+        const newUsers = [...prevUsers];
+        newUsers[userIndex] = {
+          ...newUsers[userIndex],
+          position: data.position,
+        };
+        return newUsers;
       });
     });
 
@@ -164,19 +175,21 @@ export default function Whiteboard() {
       setActiveUsers((users) => users.filter((u) => u.id !== userId));
     });
 
-    // Load saved canvas state
-    const savedState = localStorage.getItem("canvasState");
-    if (savedState) {
-      const img = new Image();
-      img.src = savedState;
-      img.onload = () => {
-        const canvas = canvasRef.current;
-        const context = canvas?.getContext("2d");
-        if (context && canvas) {
-          context.drawImage(img, 0, 0);
-        }
-      };
-    }
+    const loadSavedState = () => {
+      const savedState = localStorage.getItem("canvasState");
+      if (savedState && canvasRef.current) {
+        const img = new Image();
+        img.src = savedState;
+        img.onload = () => {
+          const context = canvasRef.current?.getContext("2d");
+          if (context && canvasRef.current) {
+            context.drawImage(img, 0, 0);
+          }
+        };
+      }
+    };
+
+    loadSavedState();
 
     return () => {
       socket.disconnect();
@@ -225,7 +238,9 @@ export default function Whiteboard() {
     }
   };
 
-  const handlePaste = async (e: ClipboardEvent) => {
+  const handlePaste = async (
+    e: React.ClipboardEvent<HTMLCanvasElement>
+  ): Promise<void> => {
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -322,78 +337,70 @@ export default function Whiteboard() {
     }
   };
 
-  const draw = (e: React.MouseEvent) => {
-    if (!isDrawing) return;
+  const draw = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isDrawing || !canvasRef.current || !tempCanvasRef.current) return;
 
-    const canvas = canvasRef.current;
-    const tempCanvas = tempCanvasRef.current;
-    if (!canvas || !tempCanvas) return;
+      const canvas = canvasRef.current;
+      const tempCanvas = tempCanvasRef.current;
+      const context = canvas.getContext("2d");
+      const tempContext = tempCanvas.getContext("2d");
 
-    const context = canvas.getContext("2d");
-    const tempContext = tempCanvas.getContext("2d");
-    if (!context || !tempContext) return;
+      if (!context || !tempContext) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const currentPoint = {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    };
+      const rect = canvas.getBoundingClientRect();
+      const currentPoint = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
 
-    if (selectedTool === "rectangle" || selectedTool === "circle") {
-      if (startPoint) {
-        // Draw preview on temp canvas
-        drawShape(
-          tempContext,
-          startPoint,
-          currentPoint,
-          selectedTool,
-          color,
-          brushSize,
-          true
-        );
+      if (selectedTool === "rectangle" || selectedTool === "circle") {
+        if (startPoint) {
+          drawShape(
+            tempContext,
+            startPoint,
+            currentPoint,
+            selectedTool,
+            color,
+            brushSize,
+            true
+          );
 
-        // Emit shape preview to other clients
+          socketRef.current?.emit("draw", {
+            color,
+            size: brushSize,
+            type: "draw",
+            tool: selectedTool,
+            shapeData: {
+              startPoint,
+              endPoint: currentPoint,
+              type: selectedTool,
+            },
+          });
+        }
+      } else {
+        context.strokeStyle = selectedTool === "eraser" ? "#FFFFFF" : color;
+        context.lineWidth =
+          selectedTool === "eraser" ? brushSize * 2 : brushSize;
+        context.lineCap = "round";
+        context.lineTo(currentPoint.x, currentPoint.y);
+        context.stroke();
+
         socketRef.current?.emit("draw", {
-          color,
-          size: brushSize,
+          x: currentPoint.x,
+          y: currentPoint.y,
+          color: selectedTool === "eraser" ? "#FFFFFF" : color,
+          size: selectedTool === "eraser" ? brushSize * 2 : brushSize,
           type: "draw",
           tool: selectedTool,
-          shapeData: {
-            startPoint,
-            endPoint: currentPoint,
-            type: selectedTool,
-          },
         });
       }
-    } else {
-      // Handle pen and eraser
-      if (selectedTool === "eraser") {
-        context.strokeStyle = "#FFFFFF";
-        context.lineWidth = brushSize * 2;
-      } else {
-        context.strokeStyle = color;
-        context.lineWidth = brushSize;
-      }
 
-      context.lineCap = "round";
-      context.lineTo(currentPoint.x, currentPoint.y);
-      context.stroke();
-
-      // Emit to other users
-      socketRef.current?.emit("draw", {
-        x: currentPoint.x,
-        y: currentPoint.y,
-        color: selectedTool === "eraser" ? "#FFFFFF" : color,
-        size: selectedTool === "eraser" ? brushSize * 2 : brushSize,
-        type: "draw",
-        tool: selectedTool,
-      });
-    }
-
-    // Emit user position
-    socketRef.current?.emit("user-position", { position: currentPoint });
-    lastPoint.current = currentPoint;
-  };
+      socketRef.current?.emit("user-position", { position: currentPoint });
+      lastPoint.current = currentPoint;
+    },
+    [isDrawing, selectedTool, color, brushSize, startPoint]
+  );
 
   const stopDrawing = () => {
     if (
@@ -482,7 +489,7 @@ export default function Whiteboard() {
           {["pen", "eraser", "rectangle", "circle"].map((tool) => (
             <button
               key={tool}
-              onClick={() => setSelectedTool(tool as any)}
+              onClick={() => setSelectedTool(tool as never)}
               className={`p-2 rounded transition-all duration-200 ${
                 selectedTool === tool
                   ? "bg-blue-500 text-white shadow-md"
@@ -500,6 +507,7 @@ export default function Whiteboard() {
             <div className="flex gap-1">
               {presetColors.map((presetColor) => (
                 <button
+                  title="Select color"
                   key={presetColor}
                   onClick={() => setColor(presetColor)}
                   className={`w-6 h-6 rounded-full border-2 transition-all duration-200 ${
@@ -511,6 +519,7 @@ export default function Whiteboard() {
                 />
               ))}
               <input
+                title="Select color"
                 type="color"
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
@@ -522,6 +531,7 @@ export default function Whiteboard() {
           <div className="flex flex-col gap-1">
             <label className="text-sm text-gray-600">Size</label>
             <input
+              title="Select brush size"
               type="range"
               min="1"
               max="20"

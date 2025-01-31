@@ -66,7 +66,6 @@ io.on("connection", (socket) => {
       user.position = data.position;
       activeUsers.set(socket.id, user);
       socket.broadcast.emit("user-position", {
-        id: socket.id,
         ...user,
         position: data.position
       });
