@@ -86,7 +86,7 @@ export default function Whiteboard() {
   };
 
   useEffect(() => {
-    const socket = io("http://localhost:3001");
+    const socket = io(process.env.NEXT_PUBLIC_WEBSOCKET_URL || "wss://your-websocket-server.com");
     socketRef.current = socket;
 
     // Generate random name and emoji for current user
