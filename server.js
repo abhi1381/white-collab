@@ -9,13 +9,6 @@ const port = 3000;
 const app = next({ dev, hostname, port });
 const handler = app.getRequestHandler();
 
-interface User {
-  id: string;
-  name: string;
-  emoji: string;
-  position: { x: number; y: number };
-  isDrawing?: boolean;
-}
 
 app.prepare().then(() => {
   const server = createServer((req, res) => {
@@ -29,7 +22,7 @@ app.prepare().then(() => {
     },
   });
 
-  const activeUsers = new Map<string, User>();
+  const activeUsers = new Map();
 
   io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
