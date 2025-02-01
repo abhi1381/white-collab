@@ -8,7 +8,6 @@ import { User, Point, DrawingData } from "@/types";
 import { useCanvas } from "@/hooks/useCanvas";
 import { Toolbar } from "./Toolbar";
 
-// Add missing refs and state
 export default function Whiteboard() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tempCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -55,8 +54,7 @@ export default function Whiteboard() {
     historyIndex,
     setHistoryIndex,
     drawShape,
-    handleDraw,
-  } = useCanvas(socketRef.current);
+  } = useCanvas();
 
   const generateRandomName = () => {
     const adjectives = ["Happy", "Lucky", "Sunny", "Clever", "Swift", "Bright"];
@@ -100,14 +98,18 @@ export default function Whiteboard() {
 
   const handleDrawEvent = useCallback(
     (data: DrawingData) => {
-      // Clear any existing shapes in the temp canvas for received shape data
       if (data.shapeData && tempCanvasRef.current) {
-        const tempContext = tempCanvasRef.current.getContext('2d');
+        const tempContext = tempCanvasRef.current.getContext("2d");
         if (tempContext) {
-          tempContext.clearRect(0, 0, tempCanvasRef.current.width, tempCanvasRef.current.height);
+          tempContext.clearRect(
+            0,
+            0,
+            tempCanvasRef.current.width,
+            tempCanvasRef.current.height
+          );
         }
       }
-      
+
       drawQueue.current.push(data);
 
       if (!isAnimationFrameScheduled.current) {
@@ -160,7 +162,6 @@ export default function Whiteboard() {
     socket.on("users-update", debouncedUsersUpdate);
 
     socket.on("draw", (data: DrawingData) => {
-      // Update user drawing state
       if (data.user) {
         setActiveUsers((prev) =>
           prev.map((u) => ({
@@ -173,7 +174,6 @@ export default function Whiteboard() {
         );
       }
 
-      // Rest of draw event handling
       handleDrawEvent(data);
     });
 
@@ -228,10 +228,8 @@ export default function Whiteboard() {
       }
     };
 
-    // Initial size
     updateCanvasSize();
 
-    // Add resize listener
     if (typeof window !== "undefined") {
       window.addEventListener("resize", updateCanvasSize);
       return () => window.removeEventListener("resize", updateCanvasSize);
@@ -335,7 +333,6 @@ export default function Whiteboard() {
     context.beginPath();
     context.moveTo(x, y);
 
-    // Emit drawing state along with start event
     socketRef.current?.emit("draw", {
       x,
       y,
@@ -355,7 +352,7 @@ export default function Whiteboard() {
     () =>
       throttle((position: Point) => {
         socketRef.current?.emit("user-position", { position });
-      }, 50), // Throttle to 50ms
+      }, 100),
     []
   );
 
@@ -384,24 +381,20 @@ export default function Whiteboard() {
 
       if (selectedTool === "rectangle" || selectedTool === "circle") {
         if (startPoint) {
-          // Clear the temp canvas before drawing new shape
           tempContext.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-          
+
           drawShape(
             tempContext,
             {
               startPoint,
               endPoint: currentPoint,
-              type: selectedTool
+              type: selectedTool,
             },
             color,
             brushSize
           );
-          
-          // Don't emit shape data during drawing, only on mouse up
         }
       } else {
-        // ...existing pen/eraser drawing code...
         context.strokeStyle = selectedTool === "eraser" ? "#FFFFFF" : color;
         context.lineWidth =
           selectedTool === "eraser" ? brushSize * 2 : brushSize;
@@ -421,18 +414,28 @@ export default function Whiteboard() {
 
       lastPoint.current = currentPoint;
     },
-    [isDrawing, selectedTool, color, brushSize, startPoint, emitCursorPosition, drawShape]
+    [
+      isDrawing,
+      selectedTool,
+      color,
+      brushSize,
+      startPoint,
+      emitCursorPosition,
+      drawShape,
+    ]
   );
 
   const stopDrawing = useCallback(() => {
     if (!isDrawing) return;
 
-    if (startPoint && lastPoint.current && 
-       (selectedTool === "rectangle" || selectedTool === "circle")) {
+    if (
+      startPoint &&
+      lastPoint.current &&
+      (selectedTool === "rectangle" || selectedTool === "circle")
+    ) {
       const canvas = canvasRef.current;
       const tempCanvas = tempCanvasRef.current;
       if (canvas && tempCanvas) {
-        // Emit the final shape data only once when stopping
         socketRef.current?.emit("draw", {
           color,
           size: brushSize,
@@ -445,7 +448,6 @@ export default function Whiteboard() {
           },
         });
 
-        // Draw the final shape on the main canvas
         const context = canvas.getContext("2d");
         if (context) {
           context.drawImage(tempCanvas, 0, 0);
@@ -458,7 +460,6 @@ export default function Whiteboard() {
       }
     }
 
-    // Emit drawing end state
     socketRef.current?.emit("draw", {
       type: "end",
       user: {
@@ -469,7 +470,15 @@ export default function Whiteboard() {
 
     setIsDrawing(false);
     setStartPoint(null);
-  }, [isDrawing, startPoint, selectedTool, color, brushSize, currentUser, saveCanvasState]);
+  }, [
+    isDrawing,
+    startPoint,
+    selectedTool,
+    color,
+    brushSize,
+    currentUser,
+    saveCanvasState,
+  ]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -536,7 +545,6 @@ export default function Whiteboard() {
         historyLength={history.length}
       />
 
-      {/* Canvas Area */}
       <div className="relative flex-1">
         <canvas
           ref={canvasRef}
@@ -555,7 +563,6 @@ export default function Whiteboard() {
           height={canvasSize.height}
           className="pointer-events-none absolute top-0 left-0"
         />
-        {/* User cursors */}
         {activeUsers.map((user) => (
           <div
             key={user.id}

@@ -1,8 +1,7 @@
 import { useCallback, useRef, useState } from "react";
-import { DrawingData, Point, ShapeData, Tool } from "@/types";
-import { Socket } from "socket.io-client";
+import { Point, ShapeData, Tool } from "@/types";
 
-export const useCanvas = (socket: Socket | null) => {
+export const useCanvas = () => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [color, setColor] = useState("#000000");
   const [brushSize, setBrushSize] = useState(2);
@@ -20,11 +19,11 @@ export const useCanvas = (socket: Socket | null) => {
       shapeSize: number
     ) => {
       const { startPoint, endPoint, type } = shapeData;
-      
-      if (context.canvas !== document.querySelector('canvas')) {
+
+      if (context.canvas !== document.querySelector("canvas")) {
         context.clearRect(0, 0, context.canvas.width, context.canvas.height);
       }
-      
+
       context.strokeStyle = shapeColor;
       context.lineWidth = shapeSize;
       context.beginPath();
@@ -36,7 +35,7 @@ export const useCanvas = (socket: Socket | null) => {
       } else if (type === "circle") {
         const radius = Math.sqrt(
           Math.pow(endPoint.x - startPoint.x, 2) +
-          Math.pow(endPoint.y - startPoint.y, 2)
+            Math.pow(endPoint.y - startPoint.y, 2)
         );
         context.beginPath();
         context.arc(startPoint.x, startPoint.y, radius, 0, 2 * Math.PI);
@@ -44,40 +43,6 @@ export const useCanvas = (socket: Socket | null) => {
       }
     },
     []
-  );
-
-  const handleDraw = useCallback(
-    (
-      canvas: HTMLCanvasElement,
-      point: Point,
-      isNewStroke: boolean = false
-    ) => {
-      const context = canvas.getContext("2d");
-      if (!context) return;
-
-      if (isNewStroke) {
-        context.beginPath();
-        context.moveTo(point.x, point.y);
-      } else {
-        context.strokeStyle = selectedTool === "eraser" ? "#FFFFFF" : color;
-        context.lineWidth = selectedTool === "eraser" ? brushSize * 2 : brushSize;
-        context.lineCap = "round";
-        context.lineTo(point.x, point.y);
-        context.stroke();
-      }
-
-      const drawingData: DrawingData = {
-        x: point.x,
-        y: point.y,
-        color: selectedTool === "eraser" ? "#FFFFFF" : color,
-        size: selectedTool === "eraser" ? brushSize * 2 : brushSize,
-        type: isNewStroke ? "start" : "draw",
-        tool: selectedTool,
-      };
-
-      socket?.emit("draw", drawingData);
-    },
-    [selectedTool, color, brushSize, socket]
   );
 
   return {
@@ -97,6 +62,5 @@ export const useCanvas = (socket: Socket | null) => {
     historyIndex,
     setHistoryIndex,
     drawShape,
-    handleDraw,
   };
 };
