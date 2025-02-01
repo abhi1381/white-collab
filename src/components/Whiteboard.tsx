@@ -79,6 +79,8 @@ export default function Whiteboard() {
   const isAnimationFrameScheduled = useRef(false);
   const lastEmitTime = useRef(0);
 
+  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+
   const generateRandomName = () => {
     const adjectives = ["Happy", "Lucky", "Sunny", "Clever", "Swift", "Bright"];
     const nouns = ["Panda", "Fox", "Owl", "Tiger", "Bear", "Wolf"];
@@ -215,6 +217,26 @@ export default function Whiteboard() {
       socket.disconnect();
     };
   }, [handleDrawEvent]);
+
+  useEffect(() => {
+    const updateCanvasSize = () => {
+      if (typeof window !== 'undefined') {
+        setCanvasSize({
+          width: window.innerWidth - 300,
+          height: window.innerHeight - 50,
+        });
+      }
+    };
+
+    // Initial size
+    updateCanvasSize();
+
+    // Add resize listener
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', updateCanvasSize);
+      return () => window.removeEventListener('resize', updateCanvasSize);
+    }
+  }, []);
 
   const saveCanvasState = () => {
     const canvas = canvasRef.current;
@@ -472,17 +494,17 @@ export default function Whiteboard() {
         if (canvasRef.current && tempCanvasRef.current) {
           const canvas = canvasRef.current;
           const tempCanvas = tempCanvasRef.current;
-          canvas.width = window?.innerWidth - 300;
-          canvas.height = window?.innerHeight - 50;
-          tempCanvas.width = window?.innerWidth - 300;
-          tempCanvas.height = window?.innerHeight - 50;
+          canvas.width = canvasSize.width;
+          canvas.height = canvasSize.height;
+          tempCanvas.width = canvasSize.width;
+          tempCanvas.height = canvasSize.height;
         }
       }, 100)
     );
 
     resizeObserver.observe(canvasRef.current);
     return () => resizeObserver.disconnect();
-  }, []);
+  }, [canvasSize]);
 
   const clearCanvas = () => {
     const canvas = canvasRef.current;
@@ -675,8 +697,8 @@ export default function Whiteboard() {
       <div className="relative flex-1">
         <canvas
           ref={canvasRef}
-          width={window?.innerWidth - 300}
-          height={window?.innerHeight - 50}
+          width={canvasSize.width}
+          height={canvasSize.height}
           className="border border-gray-300 bg-white rounded-lg shadow-lg"
           onMouseDown={startDrawing}
           onMouseMove={draw}
@@ -686,8 +708,8 @@ export default function Whiteboard() {
         />
         <canvas
           ref={tempCanvasRef}
-          width={window?.innerWidth - 300}
-          height={window?.innerHeight - 50}
+          width={canvasSize.width}
+          height={canvasSize.height}
           className="pointer-events-none absolute top-0 left-0"
         />
         {/* User cursors */}
