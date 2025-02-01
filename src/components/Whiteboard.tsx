@@ -30,6 +30,7 @@ interface DrawingData {
     id: string;
     name: string;
     emoji: string;
+    isDrawing?: boolean;
   };
 }
 
@@ -58,10 +59,6 @@ export default function Whiteboard() {
     "#00FFFF",
     "#FFFFFF",
   ]);
-  const [layers, setLayers] = useState([
-    { id: 1, visible: true, name: "Layer 1" },
-  ]);
-  const [activeLayer, setActiveLayer] = useState(1);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [startPoint, setStartPoint] = useState<Point | null>(null);
@@ -175,7 +172,23 @@ export default function Whiteboard() {
 
     socket.on("users-update", debouncedUsersUpdate);
 
-    socket.on("draw", handleDrawEvent);
+    socket.on("draw", (data: DrawingData) => {
+      // Update user drawing state
+      if (data.user) {
+        setActiveUsers((prev) =>
+          prev.map((u) => ({
+            ...u,
+            isDrawing:
+              u.id === data.user?.id
+                ? data.type === "start" || data.type === "draw"
+                : u.isDrawing,
+          }))
+        );
+      }
+
+      // Rest of draw event handling
+      handleDrawEvent(data);
+    });
 
     socket.on("user-position", (data: { id: string; position: Point }) => {
       setActiveUsers((prevUsers) => {
@@ -220,7 +233,7 @@ export default function Whiteboard() {
 
   useEffect(() => {
     const updateCanvasSize = () => {
-      if (typeof window !== 'undefined') {
+      if (typeof window !== "undefined") {
         setCanvasSize({
           width: window.innerWidth - 300,
           height: window.innerHeight - 50,
@@ -232,9 +245,9 @@ export default function Whiteboard() {
     updateCanvasSize();
 
     // Add resize listener
-    if (typeof window !== 'undefined') {
-      window.addEventListener('resize', updateCanvasSize);
-      return () => window.removeEventListener('resize', updateCanvasSize);
+    if (typeof window !== "undefined") {
+      window.addEventListener("resize", updateCanvasSize);
+      return () => window.removeEventListener("resize", updateCanvasSize);
     }
   }, []);
 
@@ -332,18 +345,20 @@ export default function Whiteboard() {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Start new path locally
     context.beginPath();
     context.moveTo(x, y);
 
-    // Emit to other users
+    // Emit drawing state along with start event
     socketRef.current?.emit("draw", {
       x,
       y,
       color,
       size: brushSize,
       type: "start",
-      user: currentUser,
+      user: {
+        ...currentUser,
+        isDrawing: true,
+      },
     });
 
     setStartPoint({ x: e.clientX - rect.left, y: e.clientY - rect.top });
@@ -462,6 +477,15 @@ export default function Whiteboard() {
   const stopDrawing = useCallback(() => {
     if (!isDrawing) return;
 
+    // Emit drawing state when stopping
+    socketRef.current?.emit("draw", {
+      type: "end",
+      user: {
+        ...currentUser,
+        isDrawing: false,
+      },
+    });
+
     if (
       startPoint &&
       (selectedTool === "rectangle" || selectedTool === "circle")
@@ -484,7 +508,7 @@ export default function Whiteboard() {
     }
     setIsDrawing(false);
     setStartPoint(null);
-  }, [isDrawing, startPoint, selectedTool]);
+  }, [isDrawing, startPoint, selectedTool, currentUser]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -533,8 +557,8 @@ export default function Whiteboard() {
 
   return (
     <div className="flex gap-4 h-screen p-4">
-      {/* Left Vertical Toolbar */}
-      <div className="flex flex-col gap-6 bg-gray-100 p-4 rounded-lg shadow-md min-w-[200px]">
+      {/* Update toolbar with overflow */}
+      <div className="flex flex-col gap-6 bg-gray-100 p-4 rounded-lg shadow-md min-w-[200px] max-h-screen overflow-y-auto">
         <div className="space-y-4">
           {/* User Info */}
           <div className="bg-white p-2 rounded-lg shadow-sm">
@@ -552,13 +576,15 @@ export default function Whiteboard() {
               <div
                 key={user.id}
                 className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
-                  user.isDrawing ? "bg-blue-100 text-blue-800" : "bg-gray-100"
+                  user.isDrawing
+                    ? "bg-blue-100 text-blue-800 border-2 border-blue-400"
+                    : "bg-gray-100"
                 }`}
               >
                 <span>{user.emoji}</span>
                 <span>{user.name}</span>
                 {user.isDrawing && (
-                  <span className="animate-pulse text-blue-600">✍️</span>
+                  <span className="animate-pulse text-blue-600 ml-1">✍️</span>
                 )}
               </div>
             ))}
@@ -626,7 +652,7 @@ export default function Whiteboard() {
         </div>
 
         {/* Actions */}
-        <div className="space-y-2">
+        <div className="space-y-2 sticky bottom-4 bg-gray-100 pt-4">
           <button
             onClick={clearCanvas}
             className="w-full px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
@@ -655,41 +681,6 @@ export default function Whiteboard() {
           >
             Download
           </button>
-        </div>
-
-        {/* Layers */}
-        <div className="space-y-2">
-          <label className="text-sm text-gray-600">Layers</label>
-          <div className="flex flex-col gap-2">
-            {layers.map((layer) => (
-              <button
-                key={layer.id}
-                onClick={() => setActiveLayer(layer.id)}
-                className={`px-2 py-1 rounded transition-all duration-200 ${
-                  activeLayer === layer.id
-                    ? "bg-blue-500 text-white shadow-sm"
-                    : "bg-white text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {layer.name}
-              </button>
-            ))}
-            <button
-              onClick={() =>
-                setLayers((l) => [
-                  ...l,
-                  {
-                    id: l.length + 1,
-                    visible: true,
-                    name: `Layer ${l.length + 1}`,
-                  },
-                ])
-              }
-              className="px-2 py-1 bg-gray-500 text-white rounded"
-            >
-              + Layer
-            </button>
-          </div>
         </div>
       </div>
 
