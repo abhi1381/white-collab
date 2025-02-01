@@ -100,6 +100,14 @@ export default function Whiteboard() {
 
   const handleDrawEvent = useCallback(
     (data: DrawingData) => {
+      // Clear any existing shapes in the temp canvas for received shape data
+      if (data.shapeData && tempCanvasRef.current) {
+        const tempContext = tempCanvasRef.current.getContext('2d');
+        if (tempContext) {
+          tempContext.clearRect(0, 0, tempCanvasRef.current.width, tempCanvasRef.current.height);
+        }
+      }
+      
       drawQueue.current.push(data);
 
       if (!isAnimationFrameScheduled.current) {
@@ -368,16 +376,17 @@ export default function Whiteboard() {
         y: e.clientY - rect.top,
       };
 
-      // Throttle cursor position updates
       emitCursorPosition(currentPoint);
 
-      // Throttle drawing events
       const now = Date.now();
-      if (now - lastEmitTime.current < 16) return; // Limit to ~60fps
+      if (now - lastEmitTime.current < 16) return;
       lastEmitTime.current = now;
 
       if (selectedTool === "rectangle" || selectedTool === "circle") {
         if (startPoint) {
+          // Clear the temp canvas before drawing new shape
+          tempContext.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+          
           drawShape(
             tempContext,
             {
@@ -388,20 +397,11 @@ export default function Whiteboard() {
             color,
             brushSize
           );
-
-          socketRef.current?.emit("draw", {
-            color,
-            size: brushSize,
-            type: "draw",
-            tool: selectedTool,
-            shapeData: {
-              startPoint,
-              endPoint: currentPoint,
-              type: selectedTool,
-            },
-          });
+          
+          // Don't emit shape data during drawing, only on mouse up
         }
       } else {
+        // ...existing pen/eraser drawing code...
         context.strokeStyle = selectedTool === "eraser" ? "#FFFFFF" : color;
         context.lineWidth =
           selectedTool === "eraser" ? brushSize * 2 : brushSize;
@@ -421,22 +421,44 @@ export default function Whiteboard() {
 
       lastPoint.current = currentPoint;
     },
-    [
-      isDrawing,
-      selectedTool,
-      color,
-      brushSize,
-      startPoint,
-      emitCursorPosition,
-      drawShape,
-      handleDraw
-    ]
+    [isDrawing, selectedTool, color, brushSize, startPoint, emitCursorPosition, drawShape]
   );
 
   const stopDrawing = useCallback(() => {
     if (!isDrawing) return;
 
-    // Emit drawing state when stopping
+    if (startPoint && lastPoint.current && 
+       (selectedTool === "rectangle" || selectedTool === "circle")) {
+      const canvas = canvasRef.current;
+      const tempCanvas = tempCanvasRef.current;
+      if (canvas && tempCanvas) {
+        // Emit the final shape data only once when stopping
+        socketRef.current?.emit("draw", {
+          color,
+          size: brushSize,
+          type: "shape",
+          tool: selectedTool,
+          shapeData: {
+            startPoint,
+            endPoint: lastPoint.current,
+            type: selectedTool,
+          },
+        });
+
+        // Draw the final shape on the main canvas
+        const context = canvas.getContext("2d");
+        if (context) {
+          context.drawImage(tempCanvas, 0, 0);
+          const tempContext = tempCanvas.getContext("2d");
+          if (tempContext) {
+            tempContext.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+          }
+          saveCanvasState();
+        }
+      }
+    }
+
+    // Emit drawing end state
     socketRef.current?.emit("draw", {
       type: "end",
       user: {
@@ -445,35 +467,9 @@ export default function Whiteboard() {
       },
     });
 
-    if (
-      startPoint &&
-      (selectedTool === "rectangle" || selectedTool === "circle")
-    ) {
-      const canvas = canvasRef.current;
-      const tempCanvas = tempCanvasRef.current;
-      if (canvas && tempCanvas) {
-        requestAnimationFrame(() => {
-          const context = canvas.getContext("2d");
-          if (context) {
-            context.drawImage(tempCanvas, 0, 0);
-            const tempContext = tempCanvas.getContext("2d");
-            if (tempContext) {
-              tempContext.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-            }
-          }
-          saveCanvasState();
-        });
-      }
-    }
     setIsDrawing(false);
     setStartPoint(null);
-  }, [
-    isDrawing,
-    startPoint,
-    selectedTool,
-    currentUser,
-    saveCanvasState
-  ]);
+  }, [isDrawing, startPoint, selectedTool, color, brushSize, currentUser, saveCanvasState]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
