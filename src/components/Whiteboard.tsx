@@ -88,7 +88,8 @@ export default function Whiteboard() {
 
   useEffect(() => {
     const socket = io(
-      process.env.NEXT_PUBLIC_WEBSOCKET_URL || "wss://your-websocket-server.com"
+      process.env.NEXT_PUBLIC_WEBSOCKET_URL ||
+        "wss://live-collab-server.up.railway.app"
     );
     socketRef.current = socket;
 

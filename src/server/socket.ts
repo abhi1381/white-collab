@@ -1,4 +1,14 @@
 import { Server } from "socket.io";
+import dotenv from 'dotenv';
+import express from 'express';
+import http from 'http';
+import cors from 'cors';
+
+dotenv.config();
+
+
+const app = express();
+app.use(cors());
 
 interface User {
   id: string;
@@ -8,6 +18,7 @@ interface User {
   isDrawing?: boolean;
 }
 
+const server = http.createServer(app);
 const io = new Server(3001, {
   cors: {
     origin: "http://localhost:3000",
@@ -80,4 +91,8 @@ io.on("connection", (socket) => {
   });
 });
 
-export default io;
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`WebSocket server running on port ${PORT}`);
+});
+
