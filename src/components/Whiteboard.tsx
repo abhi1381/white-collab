@@ -472,10 +472,10 @@ export default function Whiteboard() {
         if (canvasRef.current && tempCanvasRef.current) {
           const canvas = canvasRef.current;
           const tempCanvas = tempCanvasRef.current;
-          canvas.width = window.innerWidth - 300;
-          canvas.height = window.innerHeight - 50;
-          tempCanvas.width = window.innerWidth - 300;
-          tempCanvas.height = window.innerHeight - 50;
+          canvas.width = window?.innerWidth - 300;
+          canvas.height = window?.innerHeight - 50;
+          tempCanvas.width = window?.innerWidth - 300;
+          tempCanvas.height = window?.innerHeight - 50;
         }
       }, 100)
     );
@@ -675,8 +675,8 @@ export default function Whiteboard() {
       <div className="relative flex-1">
         <canvas
           ref={canvasRef}
-          width={window.innerWidth - 300}
-          height={window.innerHeight - 50}
+          width={window?.innerWidth - 300}
+          height={window?.innerHeight - 50}
           className="border border-gray-300 bg-white rounded-lg shadow-lg"
           onMouseDown={startDrawing}
           onMouseMove={draw}
@@ -686,8 +686,8 @@ export default function Whiteboard() {
         />
         <canvas
           ref={tempCanvasRef}
-          width={window.innerWidth - 300}
-          height={window.innerHeight - 50}
+          width={window?.innerWidth - 300}
+          height={window?.innerHeight - 50}
           className="pointer-events-none absolute top-0 left-0"
         />
         {/* User cursors */}
