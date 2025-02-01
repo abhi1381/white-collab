@@ -87,10 +87,7 @@ export default function Whiteboard() {
   };
 
   useEffect(() => {
-    const socket = io(
-      process.env.NEXT_PUBLIC_WEBSOCKET_URL ||
-        "wss://live-collab-server.up.railway.app"
-    );
+    const socket = io("wss://live-collab-server.up.railway.app");
     socketRef.current = socket;
 
     const name = generateRandomName();
