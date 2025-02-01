@@ -3,11 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "tsx server.ts",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "socket": "npx tsx src/server/socket.ts"
+    "start": "NODE_ENV=production tsx server.ts",
+    "lint": "next lint"
   },
   "dependencies": {
     "cors": "^2.8.5",
