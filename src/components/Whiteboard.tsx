@@ -4,51 +4,25 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { io, Socket } from "socket.io-client";
 import throttle from "lodash/throttle";
 import debounce from "lodash/debounce";
+import { User, Point, DrawingData } from "@/types";
+import { useCanvas } from "@/hooks/useCanvas";
+import { Toolbar } from "./Toolbar";
 
-interface User {
-  id: string;
-  name: string;
-  emoji: string;
-  position: Point;
-  isDrawing?: boolean;
-}
-
-interface DrawingData {
-  x: number;
-  y: number;
-  color: string;
-  size: number;
-  type: "start" | "draw" | "end";
-  tool?: "pen" | "eraser" | "rectangle" | "circle";
-  layerId?: number;
-  shapeData?: {
-    startPoint: Point;
-    endPoint: Point;
-    type: "rectangle" | "circle";
-  };
-  user?: {
-    id: string;
-    name: string;
-    emoji: string;
-    isDrawing?: boolean;
-  };
-}
-
-interface Point {
-  x: number;
-  y: number;
-}
-
+// Add missing refs and state
 export default function Whiteboard() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tempCanvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [color, setColor] = useState("#000000");
-  const [brushSize, setBrushSize] = useState(2);
   const socketRef = useRef<Socket | null>(null);
-  const [selectedTool, setSelectedTool] = useState<
-    "pen" | "eraser" | "rectangle" | "circle"
-  >("pen");
+  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+  const [activeUsers, setActiveUsers] = useState<User[]>([]);
+  const [currentUser, setCurrentUser] = useState<{
+    name: string;
+    emoji: string;
+  }>({
+    name: "",
+    emoji: "",
+  });
+
   const [presetColors] = useState([
     "#000000",
     "#FF0000",
@@ -59,24 +33,30 @@ export default function Whiteboard() {
     "#00FFFF",
     "#FFFFFF",
   ]);
-  const [history, setHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [startPoint, setStartPoint] = useState<Point | null>(null);
-  const [activeUsers, setActiveUsers] = useState<User[]>([]);
-  const [currentUser, setCurrentUser] = useState<{
-    name: string;
-    emoji: string;
-  }>({
-    name: "",
-    emoji: "",
-  });
-  const lastPoint = useRef<Point | null>(null);
 
   const drawQueue = useRef<DrawingData[]>([]);
   const isAnimationFrameScheduled = useRef(false);
   const lastEmitTime = useRef(0);
 
-  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+  const {
+    isDrawing,
+    setIsDrawing,
+    color,
+    setColor,
+    brushSize,
+    setBrushSize,
+    selectedTool,
+    setSelectedTool,
+    startPoint,
+    setStartPoint,
+    lastPoint,
+    history,
+    setHistory,
+    historyIndex,
+    setHistoryIndex,
+    drawShape,
+    handleDraw,
+  } = useCanvas(socketRef.current);
 
   const generateRandomName = () => {
     const adjectives = ["Happy", "Lucky", "Sunny", "Clever", "Swift", "Bright"];
@@ -102,8 +82,7 @@ export default function Whiteboard() {
       if (!data) continue;
 
       if (data.shapeData) {
-        const { startPoint, endPoint, type } = data.shapeData;
-        drawShape(context, startPoint, endPoint, type, data.color, data.size);
+        drawShape(context, data.shapeData, data.color, data.size);
       } else if (data.type === "start") {
         context.beginPath();
         context.moveTo(data.x, data.y);
@@ -117,7 +96,7 @@ export default function Whiteboard() {
     }
 
     isAnimationFrameScheduled.current = false;
-  }, []);
+  }, [drawShape]);
 
   const handleDrawEvent = useCallback(
     (data: DrawingData) => {
@@ -132,7 +111,7 @@ export default function Whiteboard() {
   );
 
   useEffect(() => {
-    const socket = io();
+    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "");
     socketRef.current = socket;
 
     const name = generateRandomName();
@@ -364,36 +343,6 @@ export default function Whiteboard() {
     setStartPoint({ x: e.clientX - rect.left, y: e.clientY - rect.top });
   };
 
-  const drawShape = (
-    context: CanvasRenderingContext2D,
-    start: Point,
-    end: Point,
-    type: "rectangle" | "circle",
-    shapeColor: string,
-    shapeSize: number,
-    isPreview = false
-  ) => {
-    const canvas = isPreview ? tempCanvasRef.current : canvasRef.current;
-    if (!canvas) return;
-
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.beginPath();
-    context.strokeStyle = shapeColor;
-    context.lineWidth = shapeSize;
-
-    if (type === "rectangle") {
-      const width = end.x - start.x;
-      const height = end.y - start.y;
-      context.strokeRect(start.x, start.y, width, height);
-    } else if (type === "circle") {
-      const radius = Math.sqrt(
-        Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2)
-      );
-      context.arc(start.x, start.y, radius, 0, 2 * Math.PI);
-      context.stroke();
-    }
-  };
-
   const emitCursorPosition = useMemo(
     () =>
       throttle((position: Point) => {
@@ -431,12 +380,13 @@ export default function Whiteboard() {
         if (startPoint) {
           drawShape(
             tempContext,
-            startPoint,
-            currentPoint,
-            selectedTool,
+            {
+              startPoint,
+              endPoint: currentPoint,
+              type: selectedTool
+            },
             color,
-            brushSize,
-            true
+            brushSize
           );
 
           socketRef.current?.emit("draw", {
@@ -471,7 +421,16 @@ export default function Whiteboard() {
 
       lastPoint.current = currentPoint;
     },
-    [isDrawing, selectedTool, color, brushSize, startPoint, emitCursorPosition]
+    [
+      isDrawing,
+      selectedTool,
+      color,
+      brushSize,
+      startPoint,
+      emitCursorPosition,
+      drawShape,
+      handleDraw
+    ]
   );
 
   const stopDrawing = useCallback(() => {
@@ -508,7 +467,13 @@ export default function Whiteboard() {
     }
     setIsDrawing(false);
     setStartPoint(null);
-  }, [isDrawing, startPoint, selectedTool, currentUser]);
+  }, [
+    isDrawing,
+    startPoint,
+    selectedTool,
+    currentUser,
+    saveCanvasState
+  ]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -557,132 +522,23 @@ export default function Whiteboard() {
 
   return (
     <div className="flex gap-4 h-screen p-4">
-      {/* Update toolbar with overflow */}
-      <div className="flex flex-col gap-6 bg-gray-100 p-4 rounded-lg shadow-md min-w-[200px] max-h-screen overflow-y-auto">
-        <div className="space-y-4">
-          {/* User Info */}
-          <div className="bg-white p-2 rounded-lg shadow-sm">
-            <div className="text-sm font-medium text-gray-600">
-              {currentUser.emoji} You: {currentUser.name}
-            </div>
-            <div className="text-sm text-gray-600">
-              Active Users: {activeUsers.length}
-            </div>
-          </div>
-
-          {/* Active Users */}
-          <div className="flex flex-col gap-2">
-            {activeUsers.map((user) => (
-              <div
-                key={user.id}
-                className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
-                  user.isDrawing
-                    ? "bg-blue-100 text-blue-800 border-2 border-blue-400"
-                    : "bg-gray-100"
-                }`}
-              >
-                <span>{user.emoji}</span>
-                <span>{user.name}</span>
-                {user.isDrawing && (
-                  <span className="animate-pulse text-blue-600 ml-1">✍️</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Tools */}
-        <div className="space-y-4">
-          <div className="flex flex-col gap-2">
-            {["pen", "eraser", "rectangle", "circle"].map((tool) => (
-              <button
-                key={tool}
-                onClick={() => setSelectedTool(tool as never)}
-                className={`p-2 rounded transition-all duration-200 ${
-                  selectedTool === tool
-                    ? "bg-blue-500 text-white shadow-md"
-                    : "bg-white hover:bg-gray-50 text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {tool.charAt(0).toUpperCase() + tool.slice(1)}
-              </button>
-            ))}
-          </div>
-
-          {/* Color Picker */}
-          <div className="space-y-2">
-            <label className="text-sm text-gray-600">Color</label>
-            <div className="grid grid-cols-4 gap-1">
-              {presetColors.map((presetColor) => (
-                <button
-                  title="Select color"
-                  key={presetColor}
-                  onClick={() => setColor(presetColor)}
-                  className={`w-8 h-8 rounded-full border-2 transition-all duration-200 ${
-                    color === presetColor
-                      ? "border-blue-500 scale-110 shadow-sm"
-                      : "border-gray-300 opacity-60 hover:opacity-100"
-                  }`}
-                  style={{ backgroundColor: presetColor }}
-                />
-              ))}
-            </div>
-            <input
-              title="Select color"
-              type="color"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-              className="w-full"
-            />
-          </div>
-
-          {/* Brush Size */}
-          <div className="space-y-2">
-            <label className="text-sm text-gray-600">Size</label>
-            <input
-              title="Select brush size"
-              type="range"
-              min="1"
-              max="20"
-              value={brushSize}
-              onChange={(e) => setBrushSize(Number(e.target.value))}
-              className="w-full"
-            />
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="space-y-2 sticky bottom-4 bg-gray-100 pt-4">
-          <button
-            onClick={clearCanvas}
-            className="w-full px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-          >
-            Clear
-          </button>
-          <div className="flex gap-2">
-            <button
-              onClick={undo}
-              disabled={historyIndex <= 0}
-              className="flex-1 px-3 py-1 bg-gray-500 text-white rounded disabled:opacity-30"
-            >
-              Undo
-            </button>
-            <button
-              onClick={redo}
-              disabled={historyIndex >= history.length - 1}
-              className="flex-1 px-3 py-1 bg-gray-500 text-white rounded disabled:opacity-30"
-            >
-              Redo
-            </button>
-          </div>
-          <button
-            onClick={downloadCanvas}
-            className="w-full px-3 py-1 bg-green-500 text-white rounded"
-          >
-            Download
-          </button>
-        </div>
-      </div>
+      <Toolbar
+        currentUser={currentUser}
+        activeUsers={activeUsers}
+        selectedTool={selectedTool}
+        setSelectedTool={setSelectedTool}
+        color={color}
+        setColor={setColor}
+        brushSize={brushSize}
+        setBrushSize={setBrushSize}
+        presetColors={presetColors}
+        onClear={clearCanvas}
+        onUndo={undo}
+        onRedo={redo}
+        onDownload={downloadCanvas}
+        historyIndex={historyIndex}
+        historyLength={history.length}
+      />
 
       {/* Canvas Area */}
       <div className="relative flex-1">
@@ -708,10 +564,7 @@ export default function Whiteboard() {
           <div
             key={user.id}
             className="absolute transform -translate-x-2 -translate-y-2"
-            style={{
-              left: user.position.x,
-              top: user.position.y,
-            }}
+            style={{ left: user.position.x, top: user.position.y }}
           >
             <div
               className={`w-4 h-4 rounded-full ${
