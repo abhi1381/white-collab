@@ -38,7 +38,6 @@ export function Toolbar({
   return (
     <div className="flex flex-col gap-6 bg-gray-100 p-4 rounded-lg shadow-md min-w-[200px] max-h-screen overflow-y-auto">
       <div className="space-y-4">
-        {/* User Info */}
         <div className="bg-white p-2 rounded-lg shadow-sm">
           <div className="text-sm font-medium text-gray-600">
             {currentUser.emoji} You: {currentUser.name}
@@ -48,12 +47,11 @@ export function Toolbar({
           </div>
         </div>
 
-        {/* Active Users */}
         <div className="flex flex-col gap-2">
           {activeUsers.map((user) => (
             <div
               key={user.id}
-              className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm text-black/80 ${
                 user.isDrawing
                   ? "bg-blue-100 text-blue-800 border-2 border-blue-400"
                   : "bg-gray-100"
@@ -69,7 +67,6 @@ export function Toolbar({
         </div>
       </div>
 
-      {/* Tools */}
       <div className="space-y-4">
         <div className="flex flex-col gap-2">
           {["pen", "eraser", "rectangle", "circle"].map((tool) => (
@@ -87,7 +84,6 @@ export function Toolbar({
           ))}
         </div>
 
-        {/* Color Picker */}
         <div className="space-y-2">
           <label className="text-sm text-gray-600">Color</label>
           <div className="grid grid-cols-4 gap-1">
@@ -114,7 +110,6 @@ export function Toolbar({
           />
         </div>
 
-        {/* Brush Size */}
         <div className="space-y-2">
           <label className="text-sm text-gray-600">Size</label>
           <input
@@ -129,7 +124,6 @@ export function Toolbar({
         </div>
       </div>
 
-      {/* Actions */}
       <div className="space-y-2 sticky bottom-4 bg-gray-100 pt-4">
         <button
           onClick={onClear}
