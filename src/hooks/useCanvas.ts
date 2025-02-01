@@ -20,6 +20,11 @@ export const useCanvas = (socket: Socket | null) => {
       shapeSize: number
     ) => {
       const { startPoint, endPoint, type } = shapeData;
+      
+      if (context.canvas !== document.querySelector('canvas')) {
+        context.clearRect(0, 0, context.canvas.width, context.canvas.height);
+      }
+      
       context.strokeStyle = shapeColor;
       context.lineWidth = shapeSize;
       context.beginPath();
@@ -28,11 +33,12 @@ export const useCanvas = (socket: Socket | null) => {
         const width = endPoint.x - startPoint.x;
         const height = endPoint.y - startPoint.y;
         context.strokeRect(startPoint.x, startPoint.y, width, height);
-      } else {
+      } else if (type === "circle") {
         const radius = Math.sqrt(
           Math.pow(endPoint.x - startPoint.x, 2) +
-            Math.pow(endPoint.y - startPoint.y, 2)
+          Math.pow(endPoint.y - startPoint.y, 2)
         );
+        context.beginPath();
         context.arc(startPoint.x, startPoint.y, radius, 0, 2 * Math.PI);
         context.stroke();
       }
