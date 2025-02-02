@@ -525,36 +525,129 @@ export default function Whiteboard() {
     }
   };
 
-  return (
-    <div className="flex gap-4 h-screen p-4">
-      <Toolbar
-        currentUser={currentUser}
-        activeUsers={activeUsers}
-        selectedTool={selectedTool}
-        setSelectedTool={setSelectedTool}
-        color={color}
-        setColor={setColor}
-        brushSize={brushSize}
-        setBrushSize={setBrushSize}
-        presetColors={presetColors}
-        onClear={clearCanvas}
-        onUndo={undo}
-        onRedo={redo}
-        onDownload={downloadCanvas}
-        historyIndex={historyIndex}
-        historyLength={history.length}
-      />
+  // Add new state for mobile view
+  const [isMobileView, setIsMobileView] = useState(false);
+  const [isToolbarOpen, setIsToolbarOpen] = useState(false);
 
+  // Add touch event handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const touchX = touch.clientX - rect.left;
+    const touchY = touch.clientY - rect.top;
+    
+    setIsDrawing(true);
+    setStartPoint({ x: touchX, y: touchY });
+    
+    // Call existing startDrawing logic with simulated mouse event
+    const simulatedEvent = {
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+    } as React.MouseEvent;
+    startDrawing(simulatedEvent);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    
+    // Call existing draw logic with simulated mouse event
+    const simulatedEvent = {
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+    } as React.MouseEvent;
+    draw(simulatedEvent);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    stopDrawing();
+  };
+
+  // Add responsive check
+  useEffect(() => {
+    const checkMobileView = () => {
+      setIsMobileView(window.innerWidth < 768);
+    };
+    
+    checkMobileView();
+    window.addEventListener('resize', checkMobileView);
+    return () => window.removeEventListener('resize', checkMobileView);
+  }, []);
+
+  // Update canvas size calculation
+  useEffect(() => {
+    const updateCanvasSize = () => {
+      if (typeof window !== "undefined") {
+        setCanvasSize({
+          width: window.innerWidth - (isMobileView ? 0 : 300),
+          height: window.innerHeight - (isMobileView ? 100 : 50),
+        });
+      }
+    };
+    updateCanvasSize();
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("resize", updateCanvasSize);
+      return () => window.removeEventListener("resize", updateCanvasSize);
+    }
+  }, [isMobileView]);
+
+  return (
+    <div className="flex flex-col md:flex-row gap-4 h-screen p-4">
+      {/* Mobile toolbar toggle button */}
+      {isMobileView && (
+        <button
+          onClick={() => setIsToolbarOpen(!isToolbarOpen)}
+          className="fixed bottom-4 right-4 z-50 bg-blue-500 text-white p-3 rounded-full shadow-lg"
+        >
+          {isToolbarOpen ? "✕" : "🎨"}
+        </button>
+      )}
+
+      {/* Responsive toolbar */}
+      <div className={`
+        ${isMobileView ? 'fixed bottom-20 right-4 z-40' : 'relative'}
+        ${isMobileView && !isToolbarOpen ? 'hidden' : 'block'}
+      `}>
+        <Toolbar
+          currentUser={currentUser}
+          activeUsers={activeUsers}
+          selectedTool={selectedTool}
+          setSelectedTool={setSelectedTool}
+          color={color}
+          setColor={setColor}
+          brushSize={brushSize}
+          setBrushSize={setBrushSize}
+          presetColors={presetColors}
+          onClear={clearCanvas}
+          onUndo={undo}
+          onRedo={redo}
+          onDownload={downloadCanvas}
+          historyIndex={historyIndex}
+          historyLength={history.length}
+          isMobileView={isMobileView}
+        />
+      </div>
+
+      {/* Canvas Area with touch support */}
       <div className="relative flex-1">
         <canvas
           ref={canvasRef}
           width={canvasSize.width}
           height={canvasSize.height}
-          className="border border-gray-300 bg-white rounded-lg shadow-lg"
+          className="border border-gray-300 bg-white rounded-lg shadow-lg touch-none"
           onMouseDown={startDrawing}
           onMouseMove={draw}
           onMouseUp={stopDrawing}
           onMouseOut={stopDrawing}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
           onPaste={handlePaste}
         />
         <canvas

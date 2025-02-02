@@ -16,6 +16,7 @@ interface ToolbarProps {
   onDownload: () => void;
   historyIndex: number;
   historyLength: number;
+  isMobileView?: boolean;
 }
 
 export function Toolbar({
@@ -34,10 +35,17 @@ export function Toolbar({
   onDownload,
   historyIndex,
   historyLength,
+  isMobileView = false,
 }: ToolbarProps) {
   return (
-    <div className="flex flex-col gap-6 bg-gray-100 p-4 rounded-lg shadow-md min-w-[200px] max-h-screen overflow-y-auto">
-      <div className="space-y-4">
+    <div className={`
+      flex flex-col gap-6 bg-gray-100 p-4 rounded-lg shadow-md
+      ${isMobileView 
+        ? 'min-w-[280px] max-w-[95vw] max-h-[80vh] overflow-y-auto'
+        : 'min-w-[200px] max-h-screen overflow-y-auto'
+      }
+    `}>
+      <div className={`space-y-4 ${isMobileView ? 'hidden md:block' : ''}`}>
         <div className="bg-white p-2 rounded-lg shadow-sm">
           <div className="text-sm font-medium text-gray-600">
             {currentUser.emoji} You: {currentUser.name}
@@ -68,7 +76,9 @@ export function Toolbar({
       </div>
 
       <div className="space-y-4">
-        <div className="flex flex-col gap-2">
+        <div className={`
+          ${isMobileView ? 'grid grid-cols-2 gap-2' : 'flex flex-col gap-2'}
+        `}>
           {["pen", "eraser", "rectangle", "circle"].map((tool) => (
             <button
               key={tool}
@@ -86,7 +96,10 @@ export function Toolbar({
 
         <div className="space-y-2">
           <label className="text-sm text-gray-600">Color</label>
-          <div className="grid grid-cols-4 gap-1">
+          <div className={`
+            grid gap-1
+            ${isMobileView ? 'grid-cols-8' : 'grid-cols-4'}
+          `}>
             {presetColors.map((presetColor) => (
               <button
                 title="Select color"
@@ -124,7 +137,10 @@ export function Toolbar({
         </div>
       </div>
 
-      <div className="space-y-2 sticky bottom-4 bg-gray-100 pt-4">
+      <div className={`
+        space-y-2 
+        ${isMobileView ? 'sticky bottom-0 bg-gray-100 pt-2' : 'sticky bottom-4 bg-gray-100 pt-4'}
+      `}>
         <button
           onClick={onClear}
           className="w-full px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
