@@ -21,7 +21,7 @@ A real-time collaborative whiteboard application built with Next.js 15, Socket.I
 
 ### Canvas Controls
 - Export canvas as PNG
-- Paste image support
+- Drop image to canvas support
 - Canvas state persistence (auto-save)
 - Responsive canvas sizing
 
