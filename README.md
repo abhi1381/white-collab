@@ -42,6 +42,18 @@ A real-time collaborative whiteboard application built with Next.js 15, Socket.I
 - Efficient canvas rendering with temporary shape preview
 - ResizeObserver for responsive canvas handling
 
+### Mobile Support
+- Touch-enabled drawing and erasing
+- Responsive layout for mobile devices
+- Collapsible toolbar for better canvas space
+- Mobile-optimized tool grid layout
+- Touch gesture support for drawing shapes
+- Compact color palette for mobile screens
+- Floating action button for toolbar access
+- Optimized for both portrait and landscape modes
+- Touch-friendly size controls
+- Mobile-friendly user indicators
+
 ## Getting Started
 
 ### Prerequisites

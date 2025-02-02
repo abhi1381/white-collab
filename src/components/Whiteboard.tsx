@@ -509,15 +509,12 @@ export default function Whiteboard() {
     const tempContext = tempCanvas.getContext("2d");
 
     if (context && tempContext) {
-      // Clear both canvases
       context.fillStyle = "white";
       context.fillRect(0, 0, canvas.width, canvas.height);
       tempContext.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
 
-      // Clear localStorage
       localStorage.removeItem("canvasState");
 
-      // Reset history
       setHistory([]);
       setHistoryIndex(-1);
 
@@ -525,11 +522,9 @@ export default function Whiteboard() {
     }
   };
 
-  // Add new state for mobile view
   const [isMobileView, setIsMobileView] = useState(false);
   const [isToolbarOpen, setIsToolbarOpen] = useState(false);
 
-  // Add touch event handlers
   const handleTouchStart = (e: React.TouchEvent) => {
     e.preventDefault();
     const touch = e.touches[0];
@@ -543,7 +538,6 @@ export default function Whiteboard() {
     setIsDrawing(true);
     setStartPoint({ x: touchX, y: touchY });
     
-    // Call existing startDrawing logic with simulated mouse event
     const simulatedEvent = {
       clientX: touch.clientX,
       clientY: touch.clientY,
@@ -555,7 +549,6 @@ export default function Whiteboard() {
     e.preventDefault();
     const touch = e.touches[0];
     
-    // Call existing draw logic with simulated mouse event
     const simulatedEvent = {
       clientX: touch.clientX,
       clientY: touch.clientY,
@@ -568,7 +561,6 @@ export default function Whiteboard() {
     stopDrawing();
   };
 
-  // Add responsive check
   useEffect(() => {
     const checkMobileView = () => {
       setIsMobileView(window.innerWidth < 768);
@@ -579,7 +571,6 @@ export default function Whiteboard() {
     return () => window.removeEventListener('resize', checkMobileView);
   }, []);
 
-  // Update canvas size calculation
   useEffect(() => {
     const updateCanvasSize = () => {
       if (typeof window !== "undefined") {
@@ -599,7 +590,6 @@ export default function Whiteboard() {
 
   return (
     <div className="flex flex-col md:flex-row gap-4 h-screen p-4">
-      {/* Mobile toolbar toggle button */}
       {isMobileView && (
         <button
           onClick={() => setIsToolbarOpen(!isToolbarOpen)}
@@ -609,7 +599,6 @@ export default function Whiteboard() {
         </button>
       )}
 
-      {/* Responsive toolbar */}
       <div className={`
         ${isMobileView ? 'fixed bottom-20 right-4 z-40' : 'relative'}
         ${isMobileView && !isToolbarOpen ? 'hidden' : 'block'}
@@ -634,7 +623,6 @@ export default function Whiteboard() {
         />
       </div>
 
-      {/* Canvas Area with touch support */}
       <div className="relative flex-1">
         <canvas
           ref={canvasRef}
