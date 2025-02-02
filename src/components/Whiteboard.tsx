@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { io, Socket } from "socket.io-client";
 import throttle from "lodash/throttle";
 import debounce from "lodash/debounce";
-import { User, Point, DrawingData } from "@/types";
+import { User, Point, DrawingData, ImageData } from "@/types";
 import { useCanvas } from "@/hooks/useCanvas";
 import { Toolbar } from "./Toolbar";
 
@@ -278,34 +278,94 @@ export default function Whiteboard() {
     }
   };
 
-  const handlePaste = async (
-    e: React.ClipboardEvent<HTMLCanvasElement>
-  ): Promise<void> => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
+  const handleDrop = useCallback(
+    async (e: React.DragEvent<HTMLCanvasElement>) => {
+      e.preventDefault();
+      const items = e.dataTransfer.items;
 
-    for (const item of items) {
-      if (item.type.indexOf("image") !== -1) {
-        const file = item.getAsFile();
-        if (!file) continue;
+      if (!items || !canvasRef.current) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = canvasRef.current;
-            const context = canvas?.getContext("2d");
-            if (context && canvas) {
-              context.drawImage(img, 0, 0);
-              saveCanvasState();
-            }
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (!file) continue;
+
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const img = new Image();
+            const dataUrl = event.target?.result as string;
+
+            img.onload = () => {
+              const canvas = canvasRef.current;
+              const context = canvas?.getContext("2d");
+
+              if (context && canvas) {
+                const scale = Math.min(
+                  canvas.width / img.width,
+                  canvas.height / img.height,
+                  1
+                );
+
+                const width = img.width * scale;
+                const height = img.height * scale;
+                const x = (canvas.width - width) / 2;
+                const y = (canvas.height - height) / 2;
+
+                context.drawImage(img, x, y, width, height);
+
+                // Emit the image data to other users
+                socketRef.current?.emit("image-drop", {
+                  dataUrl,
+                  position: { x, y, width, height },
+                });
+
+                saveCanvasState();
+              }
+            };
+
+            img.src = dataUrl;
           };
-          img.src = event.target?.result as string;
-        };
-        reader.readAsDataURL(file);
+
+          reader.readAsDataURL(file);
+          break;
+        }
       }
-    }
-  };
+    },
+    [saveCanvasState]
+  );
+
+  useEffect(() => {
+    socketRef.current?.on("image-drop", (imageData: ImageData) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = canvasRef.current;
+        const context = canvas?.getContext("2d");
+
+        if (context && canvas) {
+          context.drawImage(
+            img,
+            imageData.position.x,
+            imageData.position.y,
+            imageData.position.width,
+            imageData.position.height
+          );
+          saveCanvasState();
+        }
+      };
+      img.src = imageData.dataUrl;
+    });
+
+    return () => {
+      socketRef.current?.off("image-drop");
+    };
+  }, [saveCanvasState]);
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent<HTMLCanvasElement>) => {
+      e.preventDefault();
+    },
+    []
+  );
 
   const downloadCanvas = () => {
     const canvas = canvasRef.current;
@@ -530,14 +590,14 @@ export default function Whiteboard() {
     const touch = e.touches[0];
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
+
     const rect = canvas.getBoundingClientRect();
     const touchX = touch.clientX - rect.left;
     const touchY = touch.clientY - rect.top;
-    
+
     setIsDrawing(true);
     setStartPoint({ x: touchX, y: touchY });
-    
+
     const simulatedEvent = {
       clientX: touch.clientX,
       clientY: touch.clientY,
@@ -548,7 +608,7 @@ export default function Whiteboard() {
   const handleTouchMove = (e: React.TouchEvent) => {
     e.preventDefault();
     const touch = e.touches[0];
-    
+
     const simulatedEvent = {
       clientX: touch.clientX,
       clientY: touch.clientY,
@@ -565,10 +625,10 @@ export default function Whiteboard() {
     const checkMobileView = () => {
       setIsMobileView(window.innerWidth < 768);
     };
-    
+
     checkMobileView();
-    window.addEventListener('resize', checkMobileView);
-    return () => window.removeEventListener('resize', checkMobileView);
+    window.addEventListener("resize", checkMobileView);
+    return () => window.removeEventListener("resize", checkMobileView);
   }, []);
 
   useEffect(() => {
@@ -599,10 +659,12 @@ export default function Whiteboard() {
         </button>
       )}
 
-      <div className={`
-        ${isMobileView ? 'fixed bottom-20 right-4 z-40' : 'relative'}
-        ${isMobileView && !isToolbarOpen ? 'hidden' : 'block'}
-      `}>
+      <div
+        className={`
+        ${isMobileView ? "fixed bottom-20 right-4 z-40" : "relative"}
+        ${isMobileView && !isToolbarOpen ? "hidden" : "block"}
+      `}
+      >
         <Toolbar
           currentUser={currentUser}
           activeUsers={activeUsers}
@@ -636,7 +698,8 @@ export default function Whiteboard() {
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          onPaste={handlePaste}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
         />
         <canvas
           ref={tempCanvasRef}

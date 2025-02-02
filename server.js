@@ -46,6 +46,10 @@ app.prepare().then(() => {
       socket.broadcast.emit("user-position", { ...user, position });
     });
 
+    socket.on("image-drop", (data) => {
+      socket.broadcast.emit("image-drop", data);
+    });
+
     socket.on("disconnect", () => {
       activeUsers.delete(socket.id);
       io.emit("users-update", Array.from(activeUsers.values()));

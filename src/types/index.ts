@@ -17,6 +17,16 @@ export interface ShapeData {
   type: "rectangle" | "circle";
 }
 
+export interface ImageData {
+  dataUrl: string;
+  position: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+
 export interface DrawingData {
   x: number;
   y: number;
@@ -27,6 +37,7 @@ export interface DrawingData {
   layerId?: number;
   shapeData?: ShapeData;
   user?: User;
+  imageData?: ImageData;
 }
 
 export type Tool = "pen" | "eraser" | "rectangle" | "circle";
